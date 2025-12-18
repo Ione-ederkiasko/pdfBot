@@ -81,24 +81,21 @@ from datetime import datetime
 from collections import defaultdict
 
 @app.post("/chat")
-def chat(payload: Question, user = Depends(get_current_user)):
+def chat(payload: Question, user=Depends(get_current_user)):
     user_id = user["sub"]
 
-    # 1. Obtener o crear conversación
     conversation = get_or_create_conversation(
         supabase,
         user_id,
         payload.conversation_id
     )
 
-    messages = conversation["messages"] or []
+    messages = conversation.get("messages", [])
 
-    # 2. Ejecutar RAG (IGUAL que antes)
     out = qa_chain({"query": payload.question})
     answer = out["result"]
     docs = out.get("source_documents", [])
 
-    # 3. Construir sources (IGUAL que antes)
     pages_by_file = defaultdict(set)
     for d in docs:
         meta = d.metadata or {}
@@ -107,23 +104,18 @@ def chat(payload: Question, user = Depends(get_current_user)):
         if page is not None:
             pages_by_file[file_name].add(page)
 
-    sources = []
-    for file_name, pages in pages_by_file.items():
-        page_list = sorted(p for p in pages if isinstance(p, int))
-        sources.append({
-            "file": file_name,
-            "pages": ", ".join(str(p) for p in page_list),
-        })
+    sources = [
+        {
+            "file": f,
+            "pages": ", ".join(str(p) for p in sorted(pages))
+        }
+        for f, pages in pages_by_file.items()
+    ]
 
     now = datetime.utcnow().isoformat()
 
-    # 4. Añadir mensajes al historial
     messages.extend([
-        {
-            "role": "user",
-            "content": payload.question,
-            "created_at": now
-        },
+        {"role": "user", "content": payload.question, "created_at": now},
         {
             "role": "assistant",
             "content": answer,
@@ -132,13 +124,11 @@ def chat(payload: Question, user = Depends(get_current_user)):
         }
     ])
 
-    # 5. Guardar conversación
     supabase.table("conversations") \
         .update({"messages": messages}) \
         .eq("id", conversation["id"]) \
         .execute()
 
-    # 6. Respuesta al frontend
     return {
         "answer": answer,
         "sources": sources,
@@ -181,6 +171,7 @@ def chat(payload: Question, user = Depends(get_current_user)):
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
