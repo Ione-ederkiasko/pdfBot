@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends  # <-- añade Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
-#from db import supabase
+from db import supabase
 
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -80,80 +80,25 @@ qa_chain = RetrievalQA.from_chain_type(
 from datetime import datetime
 from collections import defaultdict
 
-# @app.post("/chat")
-# def chat(payload: Question, user = Depends(get_current_user)):
-#     user_id = user["sub"]
-
-#     # 1. Obtener o crear conversación
-#     conversation = get_or_create_conversation(
-#         supabase,
-#         user_id,
-#         payload.conversation_id
-#     )
-
-#     messages = conversation["messages"] or []
-
-#     # 2. Ejecutar RAG (IGUAL que antes)
-#     out = qa_chain({"query": payload.question})
-#     answer = out["result"]
-#     docs = out.get("source_documents", [])
-
-#     # 3. Construir sources (IGUAL que antes)
-#     pages_by_file = defaultdict(set)
-#     for d in docs:
-#         meta = d.metadata or {}
-#         file_name = meta.get("file_name", meta.get("source", "Unknown"))
-#         page = meta.get("page_number")
-#         if page is not None:
-#             pages_by_file[file_name].add(page)
-
-#     sources = []
-#     for file_name, pages in pages_by_file.items():
-#         page_list = sorted(p for p in pages if isinstance(p, int))
-#         sources.append({
-#             "file": file_name,
-#             "pages": ", ".join(str(p) for p in page_list),
-#         })
-
-#     now = datetime.utcnow().isoformat()
-
-#     # 4. Añadir mensajes al historial
-#     messages.extend([
-#         {
-#             "role": "user",
-#             "content": payload.question,
-#             "created_at": now
-#         },
-#         {
-#             "role": "assistant",
-#             "content": answer,
-#             "sources": sources,
-#             "created_at": now
-#         }
-#     ])
-
-#     # 5. Guardar conversación
-#     supabase.table("conversations") \
-#         .update({"messages": messages}) \
-#         .eq("id", conversation["id"]) \
-#         .execute()
-
-#     # 6. Respuesta al frontend
-#     return {
-#         "answer": answer,
-#         "sources": sources,
-#         "conversation_id": conversation["id"]
-#     }
-
 @app.post("/chat")
 def chat(payload: Question, user = Depends(get_current_user)):
-    # user es el payload del JWT de Supabase
-    user_id = user["sub"]  # ID del usuario en Supabase
+    user_id = user["sub"]
 
+    # 1. Obtener o crear conversación
+    conversation = get_or_create_conversation(
+        supabase,
+        user_id,
+        payload.conversation_id
+    )
+
+    messages = conversation["messages"] or []
+
+    # 2. Ejecutar RAG (IGUAL que antes)
     out = qa_chain({"query": payload.question})
     answer = out["result"]
     docs = out.get("source_documents", [])
 
+    # 3. Construir sources (IGUAL que antes)
     pages_by_file = defaultdict(set)
     for d in docs:
         meta = d.metadata or {}
@@ -164,23 +109,79 @@ def chat(payload: Question, user = Depends(get_current_user)):
 
     sources = []
     for file_name, pages in pages_by_file.items():
-        page_list = sorted(
-            p for p in pages if isinstance(p, int) or str(p).isdigit()
-        )
-        page_str = ", ".join(str(p) for p in page_list)
-        sources.append(
-            {
-                "file": file_name,
-                "pages": page_str,
-            }
-        )
+        page_list = sorted(p for p in pages if isinstance(p, int))
+        sources.append({
+            "file": file_name,
+            "pages": ", ".join(str(p) for p in page_list),
+        })
 
+    now = datetime.utcnow().isoformat()
+
+    # 4. Añadir mensajes al historial
+    messages.extend([
+        {
+            "role": "user",
+            "content": payload.question,
+            "created_at": now
+        },
+        {
+            "role": "assistant",
+            "content": answer,
+            "sources": sources,
+            "created_at": now
+        }
+    ])
+
+    # 5. Guardar conversación
+    supabase.table("conversations") \
+        .update({"messages": messages}) \
+        .eq("id", conversation["id"]) \
+        .execute()
+
+    # 6. Respuesta al frontend
     return {
         "answer": answer,
         "sources": sources,
-        # opcionalmente, para debug:
-        # "user_id": user_id,
+        "conversation_id": conversation["id"]
     }
+
+# @app.post("/chat")
+# def chat(payload: Question, user = Depends(get_current_user)):
+#     # user es el payload del JWT de Supabase
+#     user_id = user["sub"]  # ID del usuario en Supabase
+
+#     out = qa_chain({"query": payload.question})
+#     answer = out["result"]
+#     docs = out.get("source_documents", [])
+
+#     pages_by_file = defaultdict(set)
+#     for d in docs:
+#         meta = d.metadata or {}
+#         file_name = meta.get("file_name", meta.get("source", "Unknown"))
+#         page = meta.get("page_number")
+#         if page is not None:
+#             pages_by_file[file_name].add(page)
+
+#     sources = []
+#     for file_name, pages in pages_by_file.items():
+#         page_list = sorted(
+#             p for p in pages if isinstance(p, int) or str(p).isdigit()
+#         )
+#         page_str = ", ".join(str(p) for p in page_list)
+#         sources.append(
+#             {
+#                 "file": file_name,
+#                 "pages": page_str,
+#             }
+#         )
+
+#     return {
+#         "answer": answer,
+#         "sources": sources,
+#         # opcionalmente, para debug:
+#         # "user_id": user_id,
+#     }
+
 
 
 
