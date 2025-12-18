@@ -16,7 +16,7 @@ type Message = {
   sources?: Source[];
 };
 
-const API_URL = "https://rag-agent-production-f1ab.up.railway.app/chat";
+const API_URL = "https://usuariobot-production.up.railway.app/chat";
 
 function renderBold(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -204,3 +204,4 @@ function App() {
 }
 
 export default App;
+
