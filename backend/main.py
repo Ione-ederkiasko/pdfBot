@@ -16,14 +16,20 @@ from auth import get_current_user  # <-- importa la dependencia
 
 app = FastAPI(title="RAG Chatbot")
 
+origins = [
+    "http://localhost:5173",          # para desarrollo Vite
+    "https://usuariobot.netlify.app",   # tu dominio en producción
+]
+
 # CORS para que el frontend en Netlify pueda conectarse
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Cambiar por tu dominio Netlify luego
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 class Question(BaseModel):
     question: str
 
@@ -172,6 +178,7 @@ def chat(payload: Question, user=Depends(get_current_user)):
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
