@@ -302,7 +302,7 @@ async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_us
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Solo se admiten PDFs")
 
-    # 1) Guardar el PDF en disco (por ejemplo en ./pdf_uploads)
+    # 1) Guardar el PDF en disco
     os.makedirs("pdf_uploads", exist_ok=True)
     file_path = os.path.join("pdf_uploads", file.filename)
 
@@ -320,11 +320,55 @@ async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_us
     )
     split_docs = splitter.split_documents(docs)
 
-    # 3) Añadir a tu Chroma existente
-    # vectordb es el mismo que usas arriba
+    # 3) Normalizar metadata para que /chat pueda construir las fuentes
+    for d in split_docs:
+        meta = d.metadata or {}
+
+        # nombre de archivo amigable
+        source_path = meta.get("source", file_path)
+        meta.setdefault("file_name", os.path.basename(source_path))
+
+        # page_number a partir de page (PyPDFLoader usa 'page')
+        if "page_number" not in meta and "page" in meta:
+            meta["page_number"] = meta["page"]
+
+        d.metadata = meta
+
+    # 4) Añadir a tu Chroma existente
     vectordb.add_documents(split_docs)
 
     return {"ok": True, "chunks_added": len(split_docs)}
+
+
+# @app.post("/upload-pdf")
+# async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_user)):
+#     if file.content_type != "application/pdf":
+#         raise HTTPException(status_code=400, detail="Solo se admiten PDFs")
+
+#     # 1) Guardar el PDF en disco (por ejemplo en ./pdf_uploads)
+#     os.makedirs("pdf_uploads", exist_ok=True)
+#     file_path = os.path.join("pdf_uploads", file.filename)
+
+#     contents = await file.read()
+#     with open(file_path, "wb") as f:
+#         f.write(contents)
+
+#     # 2) Cargar y trocear el PDF
+#     loader = PyPDFLoader(file_path)
+#     docs = loader.load()
+
+#     splitter = RecursiveCharacterTextSplitter(
+#         chunk_size=800,
+#         chunk_overlap=150,
+#     )
+#     split_docs = splitter.split_documents(docs)
+
+#     # 3) Añadir a tu Chroma existente
+#     # vectordb es el mismo que usas arriba
+#     vectordb.add_documents(split_docs)
+
+#     return {"ok": True, "chunks_added": len(split_docs)}
+
 
 
 
