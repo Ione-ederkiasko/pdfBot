@@ -49,6 +49,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -73,6 +74,50 @@ function App() {
     };
   }, []);
 
+  const loadConversations = async (token: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/conversations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) return;
+      const data: { conversations?: ConversationSummary[] } = await res.json();
+      setConversations(data.conversations ?? []);
+    } catch (e) {
+      console.error("Error cargando conversaciones", e);
+    }
+  };
+
+  const loadConversationById = async (id: string) => {
+    if (!accessToken) return;
+    try {
+      const res = await fetch(`${API_BASE}/conversations/${id}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!res.ok) return;
+      const data: { conversation?: Conversation } = await res.json();
+      if (data.conversation?.messages) {
+        setMessages(data.conversation.messages);
+        setCurrentConversationId(id);
+      }
+    } catch (e) {
+      console.error("Error cargando conversación", e);
+    }
+  };
+
+  useEffect(() => {
+    if (accessToken) {
+      loadConversations(accessToken);
+    } else {
+      setConversations([]);
+      setMessages([]);
+      setCurrentConversationId(null);
+    }
+  }, [accessToken]);
+
   const handleSend = async () => {
     const question = input.trim();
     if (!question || isLoading || !accessToken) return;
@@ -89,14 +134,21 @@ function App() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          conversation_id: currentConversationId, // usa el hilo actual (o null)
+        }),
       });
 
       if (!res.ok) {
         throw new Error("Error en la API");
       }
 
-      const data: { answer: string; sources?: Source[] } = await res.json();
+      const data: {
+        answer: string;
+        sources?: Source[];
+        conversation_id?: string;
+      } = await res.json();
 
       const assistantMsg: Message = {
         role: "assistant",
@@ -105,6 +157,12 @@ function App() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+
+      // si es hilo nuevo, el backend devolverá el id
+      if (data.conversation_id) {
+        setCurrentConversationId(data.conversation_id);
+      }
+
       await loadConversations(accessToken);
     } catch {
       setMessages((prev) => [
@@ -125,49 +183,6 @@ function App() {
       handleSend();
     }
   };
-
-  const loadConversations = async (token: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/conversations`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) return;
-      const data: { conversations?: ConversationSummary[] } = await res.json();
-      setConversations(data.conversations ?? []);
-    } catch (e) {
-      console.error("Error cargando conversaciones", e);
-    }
-  };
-
-  // NUEVO: cargar una conversación concreta y mostrar sus mensajes
-  const loadConversationById = async (id: string) => {
-    if (!accessToken) return;
-    try {
-      const res = await fetch(`${API_BASE}/conversations/${id}`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      if (!res.ok) return;
-      const data: { conversation?: Conversation } = await res.json();
-      if (data.conversation?.messages) {
-        setMessages(data.conversation.messages);
-      }
-    } catch (e) {
-      console.error("Error cargando conversación", e);
-    }
-  };
-
-  useEffect(() => {
-    if (accessToken) {
-      loadConversations(accessToken);
-    } else {
-      setConversations([]);
-      setMessages([]);
-    }
-  }, [accessToken]);
 
   if (!accessToken) {
     return <AuthForm onAuth={setAccessToken} />;
@@ -198,7 +213,9 @@ function App() {
                 key={c.id}
                 type="button"
                 onClick={() => loadConversationById(c.id)}
-                className="w-full text-left cursor-pointer rounded px-2 py-1 hover:bg-muted"
+                className={`w-full text-left cursor-pointer rounded px-2 py-1 hover:bg-muted ${
+                  currentConversationId === c.id ? "bg-muted" : ""
+                }`}
               >
                 <div className="font-medium truncate">
                   {c.title || "Sin título"}
@@ -216,16 +233,30 @@ function App() {
       <Card className="flex-1 h-[80vh] flex flex-col overflow-hidden">
         <div className="border-b px-4 py-3 font-semibold flex justify-between items-center">
           <span>ImpactAI Bot</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setAccessToken(null);
-              setMessages([]);
-            }}
-          >
-            Cerrar sesión
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // empezar un hilo nuevo
+                setCurrentConversationId(null);
+                setMessages([]);
+              }}
+            >
+              Nuevo hilo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAccessToken(null);
+                setMessages([]);
+                setCurrentConversationId(null);
+              }}
+            >
+              Cerrar sesión
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 px-4 py-3 overflow-y-auto">
@@ -325,6 +356,7 @@ function App() {
 export default App;
 
 
+
 // // src/App.tsx
 // import { useEffect, useState } from "react";
 // import { Input } from "@/components/ui/input";
@@ -350,6 +382,13 @@ export default App;
 //   created_at: string;
 // };
 
+// type Conversation = {
+//   id: string;
+//   title: string | null;
+//   created_at: string;
+//   messages: Message[];
+// };
+
 // const API_BASE = "https://usuariobot-production.up.railway.app";
 
 // function renderBold(text: string) {
@@ -370,7 +409,6 @@ export default App;
 //   const [accessToken, setAccessToken] = useState<string | null>(null);
 //   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
 
-//   // === NUEVO: recuperar sesión y escuchar refrescos ===
 //   useEffect(() => {
 //     const loadSession = async () => {
 //       const { data } = await supabase.auth.getSession();
@@ -393,7 +431,6 @@ export default App;
 //       subscription.unsubscribe();
 //     };
 //   }, []);
-//   // ====================================================
 
 //   const handleSend = async () => {
 //     const question = input.trim();
@@ -463,7 +500,25 @@ export default App;
 //     }
 //   };
 
-//   // cuando el usuario hace login o cambia el token, cargamos historial
+//   // NUEVO: cargar una conversación concreta y mostrar sus mensajes
+//   const loadConversationById = async (id: string) => {
+//     if (!accessToken) return;
+//     try {
+//       const res = await fetch(`${API_BASE}/conversations/${id}`, {
+//         headers: {
+//           Authorization: `Bearer ${accessToken}`,
+//         },
+//       });
+//       if (!res.ok) return;
+//       const data: { conversation?: Conversation } = await res.json();
+//       if (data.conversation?.messages) {
+//         setMessages(data.conversation.messages);
+//       }
+//     } catch (e) {
+//       console.error("Error cargando conversación", e);
+//     }
+//   };
+
 //   useEffect(() => {
 //     if (accessToken) {
 //       loadConversations(accessToken);
@@ -498,9 +553,11 @@ export default App;
 //             </p>
 //           ) : (
 //             conversations.map((c) => (
-//               <div
+//               <button
 //                 key={c.id}
-//                 className="cursor-default rounded px-2 py-1 hover:bg-muted"
+//                 type="button"
+//                 onClick={() => loadConversationById(c.id)}
+//                 className="w-full text-left cursor-pointer rounded px-2 py-1 hover:bg-muted"
 //               >
 //                 <div className="font-medium truncate">
 //                   {c.title || "Sin título"}
@@ -508,7 +565,7 @@ export default App;
 //                 <div className="text-[10px] text-muted-foreground">
 //                   {new Date(c.created_at).toLocaleString()}
 //                 </div>
-//               </div>
+//               </button>
 //             ))
 //           )}
 //         </div>
@@ -625,3 +682,4 @@ export default App;
 // }
 
 // export default App;
+
