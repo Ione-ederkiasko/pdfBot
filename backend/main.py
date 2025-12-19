@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from collections import defaultdict
 from auth import get_current_user  
 from typing import List, Dict, Any
-from db import save_conversation, supabase  # si no lo tenías
+from db import save_conversation, supabase, upsert_conversation
 from pydantic import BaseModel
 from typing import Optional
 
@@ -112,21 +112,27 @@ def chat(payload: Question, user = Depends(get_current_user)):
         page_str = ", ".join(str(p) for p in page_list)
         sources.append({"file": file_name, "pages": page_str})
 
-    # ==== NUEVO: guardar conversación en Supabase ====
     messages_to_save = [
         {"role": "user", "content": payload.question},
         {"role": "assistant", "content": answer, "sources": sources},
     ]
 
+    # usar el conversation_id que venga (o None si es nuevo hilo)
+    conversation_id: Optional[str] = payload.conversation_id
+
     try:
-        save_conversation(user_id, messages_to_save)
+        conversation_id = upsert_conversation(
+            user_id=user_id,
+            messages=messages_to_save,
+            conversation_id=conversation_id,
+        )
     except Exception as e:
         print("Error guardando conversación:", e)
-    # ================================================
 
     return {
         "answer": answer,
         "sources": sources,
+        "conversation_id": conversation_id,  # devolvemos el id al frontend
     }
 
 
@@ -215,6 +221,7 @@ def get_conversation(
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
