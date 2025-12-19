@@ -8,17 +8,13 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-def upsert_conversation(
-    user_id: str,
-    messages: List[Dict[str, Any]],
-    conversation_id: Optional[str] = None,
-):
+def upsert_conversation(user_id, messages, conversation_id=None):
     if conversation_id is None:
-        # crear hilo nuevo
+        # primer mensaje del hilo = primer role user
         title = ""
         for m in messages:
             if m.get("role") == "user":
-                title = m.get("content", "")[:80]
+                title = m.get("content", "")[:80]  # recortado
                 break
 
         result = (
@@ -32,8 +28,7 @@ def upsert_conversation(
             )
             .execute()
         )
-        new_id = result.data[0]["id"]
-        return new_id
+        return result.data[0]["id"]
     else:
         # añadir mensajes al hilo existente
         # obtener mensajes actuales
