@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Path  # <-- añade Depends
+from fastapi import FastAPI, Depends, Path, HTTPException  # <-- añade Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -207,6 +207,24 @@ def rename_conversation(
 
     return {"ok": True}
 
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str, user = Depends(get_current_user)):
+    user_id = user["sub"]
+    from db import supabase
+
+    res = (
+        supabase.table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return {"ok": True}
+
 
 # @app.post("/chat")
 # def chat(payload: Question, user = Depends(get_current_user)):
@@ -244,6 +262,7 @@ def rename_conversation(
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
