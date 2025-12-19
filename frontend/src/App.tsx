@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AuthForm } from "@/components/AuthForm";
+import { supabase } from "@/lib/supabaseClient";
 
 type Source = {
   file: string;
@@ -40,8 +41,32 @@ function App() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
+  // === NUEVO: recuperar sesión y escuchar refrescos ===
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || null;
+      if (token) {
+        setAccessToken(token);
+      }
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const token = session?.access_token || null;
+      setAccessToken(token);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+  // ====================================================
 
   const handleSend = async () => {
     const question = input.trim();
@@ -75,9 +100,7 @@ function App() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-
-      // después de cada mensaje, recargamos el historial
-      loadConversations(accessToken);
+      await loadConversations(accessToken);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -113,7 +136,7 @@ function App() {
     }
   };
 
-  // cuando el usuario hace login, cargamos historial
+  // cuando el usuario hace login o cambia el token, cargamos historial
   useEffect(() => {
     if (accessToken) {
       loadConversations(accessToken);
@@ -123,7 +146,6 @@ function App() {
     }
   }, [accessToken]);
 
-  // Si no hay token, mostramos pantalla de login/registro
   if (!accessToken) {
     return <AuthForm onAuth={setAccessToken} />;
   }
@@ -137,7 +159,7 @@ function App() {
           <Button
             variant="outline"
             size="xs"
-            onClick={() => loadConversations(accessToken)}
+            onClick={() => accessToken && loadConversations(accessToken)}
           >
             Recargar
           </Button>
@@ -278,9 +300,8 @@ function App() {
 export default App;
 
 
-
 // // src/App.tsx
-// import { useState } from "react";
+// import { useEffect, useState } from "react";
 // import { Input } from "@/components/ui/input";
 // import { Button } from "@/components/ui/button";
 // import { Card } from "@/components/ui/card";
@@ -297,7 +318,13 @@ export default App;
 //   sources?: Source[];
 // };
 
-// const API_URL = "https://usuariobot-production.up.railway.app/chat";
+// type ConversationSummary = {
+//   id: string;
+//   title: string | null;
+//   created_at: string;
+// };
+
+// const API_BASE = "https://usuariobot-production.up.railway.app";
 
 // function renderBold(text: string) {
 //   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -316,6 +343,8 @@ export default App;
 //   const [isLoading, setIsLoading] = useState(false);
 //   const [accessToken, setAccessToken] = useState<string | null>(null);
 
+//   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
 //   const handleSend = async () => {
 //     const question = input.trim();
 //     if (!question || isLoading || !accessToken) return;
@@ -326,7 +355,7 @@ export default App;
 //     setIsLoading(true);
 
 //     try {
-//       const res = await fetch(API_URL, {
+//       const res = await fetch(`${API_BASE}/chat`, {
 //         method: "POST",
 //         headers: {
 //           "Content-Type": "application/json",
@@ -348,6 +377,9 @@ export default App;
 //       };
 
 //       setMessages((prev) => [...prev, assistantMsg]);
+
+//       // después de cada mensaje, recargamos el historial
+//       loadConversations(accessToken);
 //     } catch {
 //       setMessages((prev) => [
 //         ...prev,
@@ -368,14 +400,75 @@ export default App;
 //     }
 //   };
 
+//   const loadConversations = async (token: string) => {
+//     try {
+//       const res = await fetch(`${API_BASE}/conversations`, {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//         },
+//       });
+//       if (!res.ok) return;
+//       const data: { conversations?: ConversationSummary[] } = await res.json();
+//       setConversations(data.conversations ?? []);
+//     } catch (e) {
+//       console.error("Error cargando conversaciones", e);
+//     }
+//   };
+
+//   // cuando el usuario hace login, cargamos historial
+//   useEffect(() => {
+//     if (accessToken) {
+//       loadConversations(accessToken);
+//     } else {
+//       setConversations([]);
+//       setMessages([]);
+//     }
+//   }, [accessToken]);
+
 //   // Si no hay token, mostramos pantalla de login/registro
 //   if (!accessToken) {
 //     return <AuthForm onAuth={setAccessToken} />;
 //   }
 
 //   return (
-//     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
-//       <Card className="w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden">
+//     <div className="min-h-screen bg-background text-foreground flex p-4 gap-4">
+//       {/* Columna de historial */}
+//       <Card className="w-64 h-[80vh] flex flex-col overflow-hidden">
+//         <div className="border-b px-3 py-2 font-semibold text-sm flex justify-between items-center">
+//           <span>Historial</span>
+//           <Button
+//             variant="outline"
+//             size="xs"
+//             onClick={() => loadConversations(accessToken)}
+//           >
+//             Recargar
+//           </Button>
+//         </div>
+//         <div className="flex-1 p-3 space-y-2 text-sm overflow-y-auto">
+//           {conversations.length === 0 ? (
+//             <p className="text-xs text-muted-foreground">
+//               Aún no hay conversaciones.
+//             </p>
+//           ) : (
+//             conversations.map((c) => (
+//               <div
+//                 key={c.id}
+//                 className="cursor-default rounded px-2 py-1 hover:bg-muted"
+//               >
+//                 <div className="font-medium truncate">
+//                   {c.title || "Sin título"}
+//                 </div>
+//                 <div className="text-[10px] text-muted-foreground">
+//                   {new Date(c.created_at).toLocaleString()}
+//                 </div>
+//               </div>
+//             ))
+//           )}
+//         </div>
+//       </Card>
+
+//       {/* Card del chat */}
+//       <Card className="flex-1 h-[80vh] flex flex-col overflow-hidden">
 //         <div className="border-b px-4 py-3 font-semibold flex justify-between items-center">
 //           <span>ImpactAI Bot</span>
 //           <Button
@@ -485,8 +578,3 @@ export default App;
 // }
 
 // export default App;
-
-
-
-
-
