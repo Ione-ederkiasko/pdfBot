@@ -185,6 +185,29 @@ def get_conversation(
 
     return {"conversation": result.data}
 
+class RenamePayload(BaseModel):
+  title: str
+
+@app.put("/conversations/{conversation_id}/title")
+def rename_conversation(
+    conversation_id: str,
+    payload: RenamePayload,
+    user = Depends(get_current_user),
+):
+    user_id = user["sub"]
+    from db import supabase
+
+    (
+        supabase.table("conversations")
+        .update({"title": payload.title})
+        .eq("id", conversation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    return {"ok": True}
+
+
 # @app.post("/chat")
 # def chat(payload: Question, user = Depends(get_current_user)):
 #     # user es el payload del JWT de Supabase
@@ -221,6 +244,7 @@ def get_conversation(
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
