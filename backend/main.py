@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends  # <-- añade Depends
+from fastapi import FastAPI, Depends, Path  # <-- añade Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -212,6 +212,7 @@ def get_conversation(
 #         # opcionalmente, para debug:
 #         # "user_id": user_id,
 #     }
+
 
 
 
