@@ -92,10 +92,46 @@ qa_chain = RetrievalQA.from_chain_type(
 def chat(payload: Question, user = Depends(get_current_user)):
     user_id = user["sub"]
 
-    out = qa_chain({"query": payload.question})
+    # ==== 1) Recuperar historial del hilo (si existe) ====
+    history = []
+    if payload.conversation_id:
+        try:
+            row = (
+                supabase.table("conversations")
+                .select("messages")
+                .eq("id", payload.conversation_id)
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+            history = row.data.get("messages") or []
+        except Exception as e:
+            print("Error cargando historial:", e)
+
+    # nos quedamos con los últimos N mensajes para no hacer el prompt gigante
+    last_messages = history[-6:]
+
+    history_text = ""
+    for m in last_messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        if not content:
+            continue
+        prefix = "Usuario:" if role == "user" else "Asistente:"
+        history_text += f"{prefix} {content}\n"
+
+    # ==== 2) Construir la query con historial + nueva pregunta ====
+    if history_text:
+        full_query = f"{history_text}\nUsuario: {payload.question}\nAsistente:"
+    else:
+        full_query = payload.question
+
+    # ==== 3) Llamar al QA con la query enriquecida ====
+    out = qa_chain({"query": full_query})
     answer = out["result"]
     docs = out.get("source_documents", [])
 
+    # ==== 4) Construir fuentes como antes ====
     pages_by_file = defaultdict(set)
     for d in docs:
         meta = d.metadata or {}
@@ -112,12 +148,12 @@ def chat(payload: Question, user = Depends(get_current_user)):
         page_str = ", ".join(str(p) for p in page_list)
         sources.append({"file": file_name, "pages": page_str})
 
+    # ==== 5) Guardar los nuevos mensajes en Supabase ====
     messages_to_save = [
         {"role": "user", "content": payload.question},
         {"role": "assistant", "content": answer, "sources": sources},
     ]
 
-    # usar el conversation_id que venga (o None si es nuevo hilo)
     conversation_id: Optional[str] = payload.conversation_id
 
     try:
@@ -132,8 +168,56 @@ def chat(payload: Question, user = Depends(get_current_user)):
     return {
         "answer": answer,
         "sources": sources,
-        "conversation_id": conversation_id,  # devolvemos el id al frontend
+        "conversation_id": conversation_id,
     }
+
+
+# @app.post("/chat")
+# def chat(payload: Question, user = Depends(get_current_user)):
+#     user_id = user["sub"]
+
+#     out = qa_chain({"query": payload.question})
+#     answer = out["result"]
+#     docs = out.get("source_documents", [])
+
+#     pages_by_file = defaultdict(set)
+#     for d in docs:
+#         meta = d.metadata or {}
+#         file_name = meta.get("file_name", meta.get("source", "Unknown"))
+#         page = meta.get("page_number")
+#         if page is not None:
+#             pages_by_file[file_name].add(page)
+
+#     sources = []
+#     for file_name, pages in pages_by_file.items():
+#         page_list = sorted(
+#             p for p in pages if isinstance(p, int) or str(p).isdigit()
+#         )
+#         page_str = ", ".join(str(p) for p in page_list)
+#         sources.append({"file": file_name, "pages": page_str})
+
+#     messages_to_save = [
+#         {"role": "user", "content": payload.question},
+#         {"role": "assistant", "content": answer, "sources": sources},
+#     ]
+
+#     # usar el conversation_id que venga (o None si es nuevo hilo)
+#     conversation_id: Optional[str] = payload.conversation_id
+
+#     try:
+#         conversation_id = upsert_conversation(
+#             user_id=user_id,
+#             messages=messages_to_save,
+#             conversation_id=conversation_id,
+#         )
+#     except Exception as e:
+#         print("Error guardando conversación:", e)
+
+#     return {
+#         "answer": answer,
+#         "sources": sources,
+#         "conversation_id": conversation_id,  # devolvemos el id al frontend
+#     }
 
 
 @app.get("/conversations")
@@ -150,22 +234,6 @@ def list_conversations(user = Depends(get_current_user)):
 
     # result.data ya respeta RLS: solo tus filas
     return {"conversations": result.data}
-
-
-# @app.get("/conversations/{conversation_id}")
-# def get_conversation(conversation_id: str, user = Depends(get_current_user)):
-#     user_id = user["sub"]
-
-#     result = (
-#         supabase.table("conversations")
-#         .select("id, title, messages, created_at")
-#         .eq("user_id", user_id)
-#         .eq("id", conversation_id)
-#         .single()
-#         .execute()
-#     )
-
-#     return {"conversation": result.data}
 
 @app.get("/conversations/{conversation_id}")
 def get_conversation(
@@ -225,43 +293,6 @@ def delete_conversation(conversation_id: str, user = Depends(get_current_user)):
 
     return {"ok": True}
 
-
-# @app.post("/chat")
-# def chat(payload: Question, user = Depends(get_current_user)):
-#     # user es el payload del JWT de Supabase
-#     user_id = user["sub"]  # ID del usuario en Supabase
-
-#     out = qa_chain({"query": payload.question})
-#     answer = out["result"]
-#     docs = out.get("source_documents", [])
-
-#     pages_by_file = defaultdict(set)
-#     for d in docs:
-#         meta = d.metadata or {}
-#         file_name = meta.get("file_name", meta.get("source", "Unknown"))
-#         page = meta.get("page_number")
-#         if page is not None:
-#             pages_by_file[file_name].add(page)
-
-#     sources = []
-#     for file_name, pages in pages_by_file.items():
-#         page_list = sorted(
-#             p for p in pages if isinstance(p, int) or str(p).isdigit()
-#         )
-#         page_str = ", ".join(str(p) for p in page_list)
-#         sources.append(
-#             {
-#                 "file": file_name,
-#                 "pages": page_str,
-#             }
-#         )
-
-#     return {
-#         "answer": answer,
-#         "sources": sources,
-#         # opcionalmente, para debug:
-#         # "user_id": user_id,
-#     }
 
 
 
