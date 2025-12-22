@@ -19,6 +19,7 @@ from typing import Optional
 from fastapi import File, UploadFile
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import UnstructuredExcelLoader
 
 app = FastAPI(title="RAG Chatbot")
 
@@ -340,34 +341,52 @@ async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_us
     return {"ok": True, "chunks_added": len(split_docs)}
 
 
-# @app.post("/upload-pdf")
-# async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_user)):
-#     if file.content_type != "application/pdf":
-#         raise HTTPException(status_code=400, detail="Solo se admiten PDFs")
+@app.post("/upload-excel")
+async def upload_excel(
+    file: UploadFile = File(...),
+    user = Depends(get_current_user),
+):
+    # 1) Validar tipo de archivo
+    if file.content_type not in (
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ):
+        raise HTTPException(status_code=400, detail="Solo se admiten archivos Excel")
 
-#     # 1) Guardar el PDF en disco (por ejemplo en ./pdf_uploads)
-#     os.makedirs("pdf_uploads", exist_ok=True)
-#     file_path = os.path.join("pdf_uploads", file.filename)
+    # 2) Guardar el Excel en disco
+    os.makedirs("excel_uploads", exist_ok=True)
+    file_path = os.path.join("excel_uploads", file.filename)
 
-#     contents = await file.read()
-#     with open(file_path, "wb") as f:
-#         f.write(contents)
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
 
-#     # 2) Cargar y trocear el PDF
-#     loader = PyPDFLoader(file_path)
-#     docs = loader.load()
+    # 3) Cargar y trocear el Excel
+    # UnstructuredExcelLoader funciona bien en modo "elements"
+    loader = UnstructuredExcelLoader(file_path, mode="elements")
+    docs = loader.load()
 
-#     splitter = RecursiveCharacterTextSplitter(
-#         chunk_size=800,
-#         chunk_overlap=150,
-#     )
-#     split_docs = splitter.split_documents(docs)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=150,
+    )
+    split_docs = splitter.split_documents(docs)
 
-#     # 3) Añadir a tu Chroma existente
-#     # vectordb es el mismo que usas arriba
-#     vectordb.add_documents(split_docs)
+    # 4) Normalizar metadata para que /chat pueda construir 'Fuentes'
+    for d in split_docs:
+        meta = d.metadata or {}
+        # nombre de archivo amigable
+        meta.setdefault("file_name", os.path.basename(meta.get("source", file_path)))
+        # no hay páginas, pero ponemos 1 por defecto (o podrías usar índice de fila, hoja, etc.)
+        meta.setdefault("page_number", 1)
+        d.metadata = meta
 
-#     return {"ok": True, "chunks_added": len(split_docs)}
+    # 5) Añadir a tu Chroma existente
+    vectordb.add_documents(split_docs)
+
+    return {"ok": True, "chunks_added": len(split_docs)}
+
+
 
 
 
