@@ -470,6 +470,7 @@ function App() {
             <Button
               variant="outline"
               size="sm"
+              className="px-2 py-1 text-xs"   // <- NUEVO: menos padding y fuente más pequeña
               onClick={handleUploadUrl}
             >
               Añadir URL
@@ -1196,3 +1197,4 @@ export default App;
 // }
 
 // export default App;
+
