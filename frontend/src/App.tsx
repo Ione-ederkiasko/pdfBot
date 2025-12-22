@@ -52,7 +52,7 @@ function App() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null); // NUEVO
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -267,6 +267,39 @@ function App() {
     }
   };
 
+  const handleUploadExcel = async (file: File) => {
+    if (!accessToken) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setStatusMessage(`Subiendo Excel "${file.name}"...`);
+      const res = await fetch(`${API_BASE}/upload-excel`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        console.error("Error subiendo Excel");
+        setStatusMessage("Error al subir el Excel.");
+        return;
+      }
+
+      const data = await res.json();
+      setStatusMessage(
+        `Excel "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
+      );
+      setTimeout(() => setStatusMessage(null), 5000);
+    } catch (e) {
+      console.error("Error llamando a /upload-excel", e);
+      setStatusMessage("Error al subir el Excel.");
+    }
+  };
+
   if (!accessToken) {
     return <AuthForm onAuth={setAccessToken} />;
   }
@@ -375,6 +408,23 @@ function App() {
                 }}
               />
             </label>
+
+            <label className="text-xs cursor-pointer border rounded px-2 py-1 hover:bg-muted">
+              Subir Excel
+              <input
+                type="file"
+                accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleUploadExcel(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </label>
+
             <Button
               variant="outline"
               size="sm"
@@ -556,6 +606,7 @@ export default App;
 //   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 //   const [editingId, setEditingId] = useState<string | null>(null);
 //   const [editingTitle, setEditingTitle] = useState("");
+//   const [statusMessage, setStatusMessage] = useState<string | null>(null); // NUEVO
 
 //   useEffect(() => {
 //     const loadSession = async () => {
@@ -744,24 +795,29 @@ export default App;
 //     formData.append("file", file);
 
 //     try {
+//       setStatusMessage(`Subiendo "${file.name}"...`);
 //       const res = await fetch(`${API_BASE}/upload-pdf`, {
 //         method: "POST",
 //         headers: {
 //           Authorization: `Bearer ${accessToken}`,
-//           // no poner Content-Type, la añade el navegador
 //         },
 //         body: formData,
 //       });
 
 //       if (!res.ok) {
 //         console.error("Error subiendo PDF");
+//         setStatusMessage("Error al subir el PDF.");
 //         return;
 //       }
 
 //       const data = await res.json();
-//       console.log("PDF subido, chunks añadidos:", data.chunks_added);
+//       setStatusMessage(
+//         `PDF "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
+//       );
+//       setTimeout(() => setStatusMessage(null), 5000);
 //     } catch (e) {
 //       console.error("Error llamando a /upload-pdf", e);
+//       setStatusMessage("Error al subir el PDF.");
 //     }
 //   };
 
@@ -897,6 +953,12 @@ export default App;
 //           </div>
 //         </div>
 
+//         {statusMessage && (
+//           <div className="px-4 py-2 text-xs text-emerald-800 bg-emerald-50 border-b border-emerald-200">
+//             {statusMessage}
+//           </div>
+//         )}
+
 //         <div className="flex-1 px-4 py-3 overflow-y-auto">
 //           <div className="space-y-4">
 //             {messages.map((m, i) => (
@@ -992,3 +1054,4 @@ export default App;
 // }
 
 // export default App;
+
