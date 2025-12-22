@@ -349,7 +349,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background text-foreground flex p-4 gap-4">
       {/* Columna de historial */}
-      <Card className="w-64 h-[80vh] flex flex-col overflow-hidden">
+      <Card className="w-64 h-[95vh] flex flex-col overflow-hidden">
         <div className="border-b px-3 py-2 font-semibold text-sm flex justify-between items-center">
           <span>Historial</span>
           <Button
@@ -431,7 +431,7 @@ function App() {
       </Card>
 
       {/* Card del chat */}
-      <Card className="flex-1 h-[80vh] flex flex-col overflow-hidden">
+      <Card className="flex-1 h-[95vh] flex flex-col overflow-hidden">
         <div className="border-b px-4 py-3 font-semibold flex justify-between items-center">
           <span>ImpactAI Bot</span>
           <div className="flex gap-2 items-center">
@@ -1196,5 +1196,6 @@ export default App;
 // }
 
 // export default App;
+
 
 
