@@ -52,7 +52,7 @@ vectordb = Chroma(
 )
 
 # 3. Retriever (top 5 documentos más similares)
-retriever = vectordb.as_retriever(search_kwargs={"k": 5})
+retriever = vectordb.as_retriever(search_kwargs={"k": 10})
 
 # 4. Prompt optimizado para español
 
@@ -368,6 +368,7 @@ async def upload_pdf(file: UploadFile = File(...), user = Depends(get_current_us
 #     vectordb.add_documents(split_docs)
 
 #     return {"ok": True, "chunks_added": len(split_docs)}
+
 
 
 
