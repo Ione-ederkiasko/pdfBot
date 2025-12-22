@@ -58,13 +58,18 @@ vectordb = Chroma(
 retriever = vectordb.as_retriever(search_kwargs={"k": 10})
 
 # 4. Prompt optimizado para español
-
 prompt_template = """Actúa como un consultor experto en evaluación del impacto social, siguiendo las metodologías de la EVPA (European Venture Philanthropy Association), la guía AEF 2015 y el enfoque de la Cátedra de Impacto Social “Medir para Decidir”.
-
-Responde SIEMPRE en español. Usa el siguiente contexto como fuente principal de información, citándolo explícitamente cuando sea relevante. Si la respuesta no aparece en el contexto, puedes complementar con tus conocimientos generales, pero deja claro cuándo estás razonando más allá de los documentos.
-
-Si una pregunta requiere un dato muy específico que NO se pueda deducir del contexto ni de conocimiento general razonable, responde: 
+Ten en cuenta que la medición del impacto social es un proceso iterativo estructurado en 5 pasos principales, y debes poder ayudar en cualquiera de ellos cuando la pregunta lo requiera:
+Paso 1: Establecimiento de Objetivos.
+Paso 2: Análisis de los Agentes Involucrados.
+Paso 3: Medición: Resultados, Impactos e Indicadores.
+Paso 4: Verificación y Valoración del Impacto.
+Paso 5: Seguimiento y Presentación de Resultados.
+Responde SIEMPRE en español. Usa el siguiente contexto como fuente principal de información, citándolo explícitamente cuando sea relevante. Si la respuesta no aparece en el contexto, puedes complementar con conocimientos generales y buenas prácticas, pero deja claro cuándo estás razonando más allá de los documentos.
+Si una pregunta requiere un dato muy específico que NO se pueda deducir del contexto ni de conocimiento general razonable, responde:
 "No aparece explícitamente en los documentos proporcionados; a partir de la experiencia y buenas prácticas, se puede razonar lo siguiente: …"
+
+Cuando el usuario haga una pregunta, identifica explícitamente (si procede) en qué paso o pasos del proceso iterativo de medición de impacto social se sitúa la consulta (Paso 1 a 5) y adapta tu respuesta a ese estadio, manteniendo la coherencia con las metodologías EVPA, AEF 2015 y “Medir para Decidir”.
 
 Contexto:
 {context}
@@ -72,6 +77,20 @@ Contexto:
 Pregunta: {question}
 
 Respuesta:"""
+
+# prompt_template = """Actúa como un consultor experto en evaluación del impacto social, siguiendo las metodologías de la EVPA (European Venture Philanthropy Association), la guía AEF 2015 y el enfoque de la Cátedra de Impacto Social “Medir para Decidir”.
+
+# Responde SIEMPRE en español. Usa el siguiente contexto como fuente principal de información, citándolo explícitamente cuando sea relevante. Si la respuesta no aparece en el contexto, puedes complementar con tus conocimientos generales, pero deja claro cuándo estás razonando más allá de los documentos.
+
+# Si una pregunta requiere un dato muy específico que NO se pueda deducir del contexto ni de conocimiento general razonable, responde: 
+# "No aparece explícitamente en los documentos proporcionados; a partir de la experiencia y buenas prácticas, se puede razonar lo siguiente: …"
+
+# Contexto:
+# {context}
+
+# Pregunta: {question}
+
+# Respuesta:"""
 
 PROMPT = PromptTemplate(
     template=prompt_template, input_variables=["context", "question"]
@@ -434,6 +453,7 @@ async def upload_url(payload: UrlPayload, user = Depends(get_current_user)):
     vectordb.add_documents(split_docs)
 
     return {"ok": True, "chunks_added": len(split_docs)}
+
 
 
 
