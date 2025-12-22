@@ -293,7 +293,7 @@ function App() {
       });
 
       if (!res.ok) {
-        const text = await res.text();          // NUEVO
+        const text = await res.text();
         console.error("upload-excel error:", res.status, text);
         setAutoClearingStatus("Error al subir el Excel.");
         return;
@@ -306,6 +306,39 @@ function App() {
     } catch (e) {
       console.error("Error llamando a /upload-excel", e);
       setAutoClearingStatus("Error al subir el Excel.");
+    }
+  };
+
+  const handleUploadUrl = async () => {
+    if (!accessToken) return;
+    const url = window.prompt("Introduce la URL de la página web:");
+    if (!url) return;
+
+    try {
+      setAutoClearingStatus(`Cargando URL "${url}"...`);
+      const res = await fetch(`${API_BASE}/upload-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("upload-url error:", res.status, text);
+        setAutoClearingStatus("Error al cargar la URL.");
+        return;
+      }
+
+      const data = await res.json();
+      setAutoClearingStatus(
+        `URL cargada correctamente. Se han indexado ${data.chunks_added} fragmentos.`
+      );
+    } catch (e) {
+      console.error("Error llamando a /upload-url", e);
+      setAutoClearingStatus("Error al cargar la URL.");
     }
   };
 
@@ -437,6 +470,14 @@ function App() {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleUploadUrl}
+            >
+              Añadir URL
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setCurrentConversationId(null);
                 setMessages([]);
@@ -560,7 +601,6 @@ function App() {
 
 export default App;
 
-
 // // src/App.tsx
 // import { useEffect, useState } from "react";
 // import { Input } from "@/components/ui/input";
@@ -615,7 +655,8 @@ export default App;
 //   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 //   const [editingId, setEditingId] = useState<string | null>(null);
 //   const [editingTitle, setEditingTitle] = useState("");
-//   const [statusMessage, setStatusMessage] = useState<string | null>(null); // NUEVO
+//   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+//   const [statusTimeoutId, setStatusTimeoutId] = useState<number | null>(null);
 
 //   useEffect(() => {
 //     const loadSession = async () => {
@@ -797,6 +838,15 @@ export default App;
 //     }
 //   };
 
+//   const setAutoClearingStatus = (message: string) => {
+//     if (statusTimeoutId) {
+//       clearTimeout(statusTimeoutId);
+//     }
+//     setStatusMessage(message);
+//     const id = window.setTimeout(() => setStatusMessage(null), 5000);
+//     setStatusTimeoutId(id);
+//   };
+
 //   const handleUploadPdf = async (file: File) => {
 //     if (!accessToken) return;
 
@@ -804,7 +854,7 @@ export default App;
 //     formData.append("file", file);
 
 //     try {
-//       setStatusMessage(`Subiendo "${file.name}"...`);
+//       setAutoClearingStatus(`Subiendo "${file.name}"...`);
 //       const res = await fetch(`${API_BASE}/upload-pdf`, {
 //         method: "POST",
 //         headers: {
@@ -815,20 +865,86 @@ export default App;
 
 //       if (!res.ok) {
 //         console.error("Error subiendo PDF");
-//         setStatusMessage("Error al subir el PDF.");
+//         setAutoClearingStatus("Error al subir el PDF.");
 //         return;
 //       }
 
 //       const data = await res.json();
-//       setStatusMessage(
+//       setAutoClearingStatus(
 //         `PDF "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
 //       );
-//       setTimeout(() => setStatusMessage(null), 5000);
 //     } catch (e) {
 //       console.error("Error llamando a /upload-pdf", e);
-//       setStatusMessage("Error al subir el PDF.");
+//       setAutoClearingStatus("Error al subir el PDF.");
 //     }
 //   };
+
+//   const handleUploadExcel = async (file: File) => {
+//     if (!accessToken) return;
+
+//     const formData = new FormData();
+//     formData.append("file", file);
+
+//     try {
+//       setAutoClearingStatus(`Subiendo Excel "${file.name}"...`);
+//       const res = await fetch(`${API_BASE}/upload-excel`, {
+//         method: "POST",
+//         headers: {
+//           Authorization: `Bearer ${accessToken}`,
+//         },
+//         body: formData,
+//       });
+
+//       if (!res.ok) {
+//         const text = await res.text();          // NUEVO
+//         console.error("upload-excel error:", res.status, text);
+//         setAutoClearingStatus("Error al subir el Excel.");
+//         return;
+//       }
+
+//       const data = await res.json();
+//       setAutoClearingStatus(
+//         `Excel "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
+//       );
+//     } catch (e) {
+//       console.error("Error llamando a /upload-excel", e);
+//       setAutoClearingStatus("Error al subir el Excel.");
+//     }
+//   };
+
+//   const handleUploadUrl = async () => {
+//   if (!accessToken) return;
+//   const url = window.prompt("Introduce la URL de la página web:");
+//   if (!url) return;
+
+//   try {
+//     setAutoClearingStatus(`Cargando URL "${url}"...`);
+//     const res = await fetch(`${API_BASE}/upload-url`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//         Authorization: `Bearer ${accessToken}`,
+//       },
+//       body: JSON.stringify({ url }),
+//     });
+
+//     if (!res.ok) {
+//       const text = await res.text();
+//       console.error("upload-url error:", res.status, text);
+//       setAutoClearingStatus("Error al cargar la URL.");
+//       return;
+//     }
+
+//     const data = await res.json();
+//     setAutoClearingStatus(
+//       `URL cargada correctamente. Se han indexado ${data.chunks_added} fragmentos.`
+//     );
+//   } catch (e) {
+//     console.error("Error llamando a /upload-url", e);
+//     setAutoClearingStatus("Error al cargar la URL.");
+//   }
+// };
+
 
 //   if (!accessToken) {
 //     return <AuthForm onAuth={setAccessToken} />;
@@ -938,6 +1054,23 @@ export default App;
 //                 }}
 //               />
 //             </label>
+
+//             <label className="text-xs cursor-pointer border rounded px-2 py-1 hover:bg-muted">
+//               Subir Excel
+//               <input
+//                 type="file"
+//                 accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+//                 className="hidden"
+//                 onChange={(e) => {
+//                   const file = e.target.files?.[0];
+//                   if (file) {
+//                     handleUploadExcel(file);
+//                     e.target.value = "";
+//                   }
+//                 }}
+//               />
+//             </label>
+
 //             <Button
 //               variant="outline"
 //               size="sm"
@@ -1063,6 +1196,3 @@ export default App;
 // }
 
 // export default App;
-
-
-
