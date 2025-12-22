@@ -53,6 +53,7 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusTimeoutId, setStatusTimeoutId] = useState<number | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -234,6 +235,15 @@ function App() {
     }
   };
 
+  const setAutoClearingStatus = (message: string) => {
+    if (statusTimeoutId) {
+      clearTimeout(statusTimeoutId);
+    }
+    setStatusMessage(message);
+    const id = window.setTimeout(() => setStatusMessage(null), 5000);
+    setStatusTimeoutId(id);
+  };
+
   const handleUploadPdf = async (file: File) => {
     if (!accessToken) return;
 
@@ -241,7 +251,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      setStatusMessage(`Subiendo "${file.name}"...`);
+      setAutoClearingStatus(`Subiendo "${file.name}"...`);
       const res = await fetch(`${API_BASE}/upload-pdf`, {
         method: "POST",
         headers: {
@@ -252,18 +262,17 @@ function App() {
 
       if (!res.ok) {
         console.error("Error subiendo PDF");
-        setStatusMessage("Error al subir el PDF.");
+        setAutoClearingStatus("Error al subir el PDF.");
         return;
       }
 
       const data = await res.json();
-      setStatusMessage(
+      setAutoClearingStatus(
         `PDF "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
       );
-      setTimeout(() => setStatusMessage(null), 5000);
     } catch (e) {
       console.error("Error llamando a /upload-pdf", e);
-      setStatusMessage("Error al subir el PDF.");
+      setAutoClearingStatus("Error al subir el PDF.");
     }
   };
 
@@ -274,7 +283,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      setStatusMessage(`Subiendo Excel "${file.name}"...`);
+      setAutoClearingStatus(`Subiendo Excel "${file.name}"...`);
       const res = await fetch(`${API_BASE}/upload-excel`, {
         method: "POST",
         headers: {
@@ -285,18 +294,17 @@ function App() {
 
       if (!res.ok) {
         console.error("Error subiendo Excel");
-        setStatusMessage("Error al subir el Excel.");
+        setAutoClearingStatus("Error al subir el Excel.");
         return;
       }
 
       const data = await res.json();
-      setStatusMessage(
+      setAutoClearingStatus(
         `Excel "${file.name}" subido correctamente. Se han indexado ${data.chunks_added} fragmentos.`
       );
-      setTimeout(() => setStatusMessage(null), 5000);
     } catch (e) {
       console.error("Error llamando a /upload-excel", e);
-      setStatusMessage("Error al subir el Excel.");
+      setAutoClearingStatus("Error al subir el Excel.");
     }
   };
 
@@ -1054,4 +1062,5 @@ export default App;
 // }
 
 // export default App;
+
 
