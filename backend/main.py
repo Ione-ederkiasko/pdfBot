@@ -20,6 +20,7 @@ from fastapi import File, UploadFile
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredExcelLoader
+from collections.abc import Mapping
 
 app = FastAPI(title="RAG Chatbot")
 
@@ -369,15 +370,70 @@ async def upload_excel(
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
     split_docs = splitter.split_documents(docs)
 
+    def sanitize_value(v):
+        # Chroma solo acepta str, int, float, bool, None
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            return v
+        if isinstance(v, (list, tuple)):
+            if not v:
+                return None
+            return str(v[0])  # p.ej. ['spa'] -> 'spa'
+        if isinstance(v, Mapping):
+            return str(v)
+        return str(v)
+
     for d in split_docs:
         meta = d.metadata or {}
-        meta.setdefault("file_name", os.path.basename(meta.get("source", file_path)))
+        source_path = meta.get("source", file_path)
+        meta.setdefault("file_name", os.path.basename(source_path))
         meta.setdefault("page_number", 1)
+
+        # sanear TODOS los valores de metadata
+        meta = {k: sanitize_value(v) for k, v in meta.items()}
         d.metadata = meta
 
     vectordb.add_documents(split_docs)
 
     return {"ok": True, "chunks_added": len(split_docs)}
+
+# @app.post("/upload-excel")
+# async def upload_excel(
+#     file: UploadFile = File(...),
+#     user = Depends(get_current_user),
+# ):
+#     if file.content_type not in (
+#         "application/vnd.ms-excel",
+#         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#     ):
+#         raise HTTPException(status_code=400, detail=f"Tipo no soportado: {file.content_type}")
+
+#     os.makedirs("excel_uploads", exist_ok=True)
+#     file_path = os.path.join("excel_uploads", file.filename)
+
+#     contents = await file.read()
+#     with open(file_path, "wb") as f:
+#         f.write(contents)
+
+#     try:
+#         loader = UnstructuredExcelLoader(file_path, mode="elements")
+#         docs = loader.load()
+#     except Exception as e:
+#         print("Error cargando Excel:", e)
+#         raise HTTPException(status_code=500, detail=f"Error cargando Excel: {e}")
+
+#     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
+#     split_docs = splitter.split_documents(docs)
+
+#     for d in split_docs:
+#         meta = d.metadata or {}
+#         meta.setdefault("file_name", os.path.basename(meta.get("source", file_path)))
+#         meta.setdefault("page_number", 1)
+#         d.metadata = meta
+
+#     vectordb.add_documents(split_docs)
+
+#     return {"ok": True, "chunks_added": len(split_docs)}
+
 
 
 
