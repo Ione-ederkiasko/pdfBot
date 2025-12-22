@@ -20,3 +20,6 @@ python-dotenv
 pyjwt
 
 supabase
+
+msoffcrypto-tool
+unstructured[all-docs]
